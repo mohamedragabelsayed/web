@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bluetooth Phone Number Updater</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+        }
+        #output {
+            margin-top: 20px;
+            white-space: pre-wrap;
+            border: 1px solid #ccc;
+            padding: 10px;
+            background-color: #f9f9f9;
+        }
+        select, button, input {
+            display: block;
+            margin: 10px 0;
+        }
+    </style>
+</head>
+<body>
+    <h1>Bluetooth Phone Number Updater</h1>
+    <button id="scan">Scan for Bluetooth Devices</button>
+    <select id="device-list">
+        <option value="">Select a device</option>
+    </select>
+    <button id="connect">Connect to Selected Device</button>
+    <label for="phone-number">Enter New Phone Number:</label>
+    <input type="text" id="phone-number" placeholder="+201234567890">
+    <button id="update-number">Update Number</button>
+    <div id="output"></div>
+
+    <script>
+        let bluetoothDevice;
+        let server;
+        let service;
+        let characteristic;
+        let devices = [];
+
+        document.addEventListener('DOMContentLoaded', () => {
+            if (!navigator.bluetooth) {
+                log('Error: Web Bluetooth API is not available in this browser.');
+                alert('Web Bluetooth API is not available in this browser. Please use Google Chrome or Microsoft Edge on supported platforms, and make sure to enable "Experimental Web Platform features" in chrome://flags or edge://flags.');
+                return;
+            }
+        });
+
+        document.getElementById('scan').addEventListener('click', async () => {
+            try {
+                const device = await navigator.bluetooth.requestDevice({
+                    acceptAllDevices: true,
+                    optionalServices: ['0000ffe0-0000-1000-8000-00805f9b34fb']
+                });
+
+                devices.push(device);
+                updateDeviceList();
+                log('Device found: ' + device.name);
+            } catch (error) {
+                log('Error: ' + error);
+            }
+        });
+
+        document.getElementById('connect').addEventListener('click', async () => {
+            const selectedDeviceIndex = document.getElementById('device-list').selectedIndex - 1;
+            if (selectedDeviceIndex >= 0) {
+                bluetoothDevice = devices[selectedDeviceIndex];
+                try {
+                    server = await bluetoothDevice.gatt.connect();
+                    service = await server.getPrimaryService('0000ffe0-0000-1000-8000-00805f9b34fb');
+                    characteristic = await service.getCharacteristic('0000ffe1-0000-1000-8000-00805f9b34fb');
+
+                    log('Connected to ' + bluetoothDevice.name);
+                } catch (error) {
+                    log('Error: ' + error);
+                }
+            } else {
+                log('Please select a device');
+            }
+        });
+
+        document.getElementById('update-number').addEventListener('click', async () => {
+            if (!characteristic) {
+                log('Bluetooth device not connected');
+                return;
+            }
+
+            const newNumber = document.getElementById('phone-number').value;
+            if (newNumber) {
+                try {
+                    const command = 'P' + newNumber;
+                    const encoder = new TextEncoder();
+                    const data = encoder.encode(command);
+                    await characteristic.writeValue(data);
+                    log('Phone number updated to: ' + newNumber);
+                } catch (error) {
+                    log('Error: ' + error);
+                }
+            } else {
+                log('Please enter a phone number');
+            }
+        });
+
+        function updateDeviceList() {
+            const deviceList = document.getElementById('device-list');
+            deviceList.innerHTML = '<option value="">Select a device</option>';
+            devices.forEach((device, index) => {
+                const option = document.createElement('option');
+                option.value = index;
+                option.text = device.name;
+                deviceList.add(option);
+            });
+        }
+
+        function log(message) {
+            const output = document.getElementById('output');
+            output.textContent += message + '\n';
+        }
+    </script>
+</body>
+</html>
